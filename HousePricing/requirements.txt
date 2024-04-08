@@ -1,0 +1,4 @@
+lightning
+pandas
+matplotlib
+seaborn
