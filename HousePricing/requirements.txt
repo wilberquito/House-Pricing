@@ -2,3 +2,4 @@ lightning
 pandas
 matplotlib
 seaborn
+scikit-learn
