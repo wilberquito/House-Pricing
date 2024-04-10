@@ -85,7 +85,7 @@ class HousePricingDataset(Dataset):
         if not self.predict:
             y = self.labels.iloc[idx]
 
-        sample = {"sample": X, "label": y} if not self.predict else {"sample": X}
+        sample = {"inputs": X, "target": y} if not self.predict else {"inputs": X}
 
         if self.transform:
             sample = self.transform(sample)
@@ -93,7 +93,7 @@ class HousePricingDataset(Dataset):
         return sample
 
 
-class HousePriceDataModule(L.LightningDataModule):
+class HousePricingDataModule(L.LightningDataModule):
     def __init__(self, data_dir: Optional[str] = None, batch_size: int = 32):
         super().__init__()
         self.data_dir = data_dir if data_dir else os.getcwd()
@@ -109,7 +109,7 @@ class HousePriceDataModule(L.LightningDataModule):
         self.housing_test = None
         self.housing_predict = None
 
-        self.preprocessing = None
+        self.columns_transformer = None
 
     def prepare_data(self) -> None:
 
@@ -128,7 +128,7 @@ class HousePriceDataModule(L.LightningDataModule):
         predict_df = pd.read_csv(predict_csv)
         predict_df = self._preprocess_dataframe(predict_df)
 
-        self.preprocessing = preprocessing(X_train)
+        self.columns_transformer = columns_transformer()
 
         c_features = {
             "train": X_train,
@@ -140,16 +140,16 @@ class HousePriceDataModule(L.LightningDataModule):
             csv_name = join(self.data_preprocessed, stage + ".csv")
 
             if stage == "train":
-                data = self.preprocessing.fit_transform(X)
+                data = self.columns_transformer.fit_transform(X)
             else:
-                data = self.preprocessing.transform(X)
+                data = self.columns_transformer.transform(X)
 
-            df_X = pd.DataFrame(data=data, columns=self.preprocessing.get_feature_names_out())
+            df_X = pd.DataFrame(data=data, columns=self.columns_transformer.get_feature_names_out())
 
-            df_preprocessed = df_X.copy()
+            transformed_df = df_X.copy()
 
             if stage == "train":
-                df_preprocessed["SalePrice"] = y_train["SalePrice"].values
+                transformed_df["SalePrice"] = y_train["SalePrice"].values
             elif stage == "test":
                 transformed_df["SalePrice"] = y_test["SalePrice"].values
 
