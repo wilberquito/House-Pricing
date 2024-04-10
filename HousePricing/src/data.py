@@ -20,25 +20,7 @@ from sklearn.model_selection import train_test_split
 
 from pathlib import Path
 
-def preprocessing(dataset_df: pd.DataFrame):
-
-    dropped_colums = [
-       "Id",
-        "Alley",
-        "MasVnrType",
-        "FireplaceQu",
-        "PoolQC",
-        "Fence",
-        "MiscFeature"
-    ]
-
-    dataset_df = dataset_df.drop(dropped_colums, axis=1,
-                                errors="ignore")
-
-    cat_columns = dataset_df.select_dtypes(include = ['O']).columns
-
-    for c in cat_columns:
-        dataset_df[c] = dataset_df[c].astype("category")
+def columns_transformer():
 
     numeric_transformer = Pipeline(
         steps = [
@@ -134,21 +116,24 @@ class HousePriceDataModule(L.LightningDataModule):
         with zipfile.ZipFile(self.data_zip,"r") as zip_ref:
             zip_ref.extractall(self.data_raw)
 
-        all_csv = join(self.data_raw, "all.csv")
-        housing_full = pd.read_csv(all_csv)
-        X = housing_full.drop("SalePrice", axis=1)
-        y = housing_full[["SalePrice"]]
+        train_csv = join(self.data_raw, "all.csv")
+        train_df = pd.read_csv(train_csv)
+        train_df = self._preprocess_dataframe(train_df)
+
+        X = train_df.drop("SalePrice", axis=1)
+        y = train_df[["SalePrice"]]
         X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.8, random_state=42)
 
         predict_csv = join(self.data_raw, "predict.csv")
-        X_predict = pd.read_csv(predict_csv)
+        predict_df = pd.read_csv(predict_csv)
+        predict_df = self._preprocess_dataframe(predict_df)
 
         self.preprocessing = preprocessing(X_train)
 
         c_features = {
             "train": X_train,
             "test": X_test,
-            "predict": X_predict
+            "predict": predict_df
         }
 
         for stage, X in c_features.items():
@@ -166,9 +151,32 @@ class HousePriceDataModule(L.LightningDataModule):
             if stage == "train":
                 df_preprocessed["SalePrice"] = y_train["SalePrice"].values
             elif stage == "test":
-                df_preprocessed["SalePrice"] = y_test["SalePrice"].values
+                transformed_df["SalePrice"] = y_test["SalePrice"].values
 
-            df_preprocessed.to_csv(csv_name, index=False)
+            transformed_df.to_csv(csv_name, index=False)
+
+    def _preprocess_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        dataset_df = df.copy()
+
+        dropped_colums = [
+            "Id",
+            "Alley",
+            "MasVnrType",
+            "FireplaceQu",
+            "PoolQC",
+            "Fence",
+            "MiscFeature"
+        ]
+
+        dataset_df = dataset_df.drop(dropped_colums, axis=1,
+                                    errors="ignore")
+
+        cat_columns = dataset_df.select_dtypes(include = ['O']).columns
+
+        for c in cat_columns:
+            dataset_df[c] = dataset_df[c].astype("category")
+
+        return dataset_df
 
     def setup(self, stage: str):
         if stage == "fit":
@@ -202,3 +210,18 @@ class HousePriceDataModule(L.LightningDataModule):
         if not self.housing_predict:
             raise Exception("[ERROR]: predict stage not set up")
         return DataLoader(self.housing_predict, batch_size=self.batch_size)
+
+    def in_features(self) -> int:
+        """Computes the number of features expected for the dataset
+        """
+
+        train_csv = join(self.data_preprocessed, "train" + ".csv")
+        if not os.path.isfile(train_csv):
+            print("[WARN]: preprocessed dataset are not created... setting up them")
+            self.setup()
+
+        df = pd.read_csv(train_csv)
+        _, in_features = df.shape
+        return in_features - 1
+
+
