@@ -164,9 +164,9 @@ class HousePriceDataModule(L.LightningDataModule):
             df_preprocessed = df_X.copy()
 
             if stage == "train":
-                df_preprocessed["SalePrice"] = y_train["SalePrice"]
+                df_preprocessed["SalePrice"] = y_train["SalePrice"].values
             elif stage == "test":
-                df_preprocessed["SalePrice"] = y_test["SalePrice"]
+                df_preprocessed["SalePrice"] = y_test["SalePrice"].values
 
             df_preprocessed.to_csv(csv_name, index=False)
 
