@@ -82,14 +82,13 @@ class HousePricingDataset(Dataset):
                 on a sample.
         """
         dataset_df = pd.read_csv(csv_file)
-        dataset_df = dataset_df.drop("Id", axis=1, errors="ignore")
-        df_num = dataset_df.select_dtypes(include = ['float64', 'int64'])
 
         self.predict = predict
         self.transform = transform
-        self.samples = df_num.drop("SalePrice", axis=1, errors="ignore")
+
+        self.samples = dataset_df.drop("SalePrice", axis=1, errors="ignore")
         if not self.predict:
-            self.labels = df_num["SalePrice"]
+            self.labels = dataset_df["SalePrice"]
 
     def __len__(self):
         return len(self.samples)
