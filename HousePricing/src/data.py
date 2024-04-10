@@ -162,12 +162,12 @@ class HousePriceDataModule(L.LightningDataModule):
 
             df_X = pd.DataFrame(data=data, columns=self.preprocessing.get_feature_names_out())
 
+            df_preprocessed = df_X.copy()
+
             if stage == "train":
-                df_preprocessed = pd.concat([df_X, y_train], axis=1)
+                df_preprocessed["SalePrice"] = y_train["SalePrice"]
             elif stage == "test":
-                df_preprocessed = pd.concat([df_X, y_test], axis=1)
-            else:
-                df_preprocessed = df_X
+                df_preprocessed["SalePrice"] = y_test["SalePrice"]
 
             df_preprocessed.to_csv(csv_name, index=False)
 
