@@ -1,5 +1,5 @@
 import os
-from os.path import join, isfile
+from os.path import join
 from typing import Optional
 import zipfile
 import torch
@@ -20,10 +20,10 @@ from sklearn.model_selection import train_test_split
 
 from pathlib import Path
 
-def preprocessing(dataset_df):
+def preprocessing(dataset_df: pd.DataFrame):
 
     dropped_colums = [
-        "Id",
+       "Id",
         "Alley",
         "MasVnrType",
         "FireplaceQu",
@@ -73,7 +73,7 @@ def preprocessing(dataset_df):
 class HousePricingDataset(Dataset):
     """House Pricing dataset."""
 
-    def __init__(self, csv_file, predict=False, transform=None):
+    def __init__(self, csv_file: str, predict: bool = False, transform=None):
         """
         Arguments:
             csv_file (string): Path to the csv file with annotations.
@@ -87,24 +87,24 @@ class HousePricingDataset(Dataset):
 
         self.predict = predict
         self.transform = transform
-        self.features = df_num.drop("SalePrice", axis=1, errors="ignore")
+        self.samples = df_num.drop("SalePrice", axis=1, errors="ignore")
         if not self.predict:
             self.labels = df_num["SalePrice"]
 
     def __len__(self):
-        return len(self.features)
+        return len(self.samples)
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        X = self.features.iloc[idx]
+        X = self.samples.iloc[idx]
         X = X.to_numpy()
 
         if not self.predict:
             y = self.labels.iloc[idx]
 
-        sample = {"features": X, "label": y} if not self.predict else {"features": X}
+        sample = {"sample": X, "label": y} if not self.predict else {"sample": X}
 
         if self.transform:
             sample = self.transform(sample)
