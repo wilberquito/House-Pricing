@@ -1,6 +1,7 @@
 import lightning as L
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class HousePricingModel(L.LightningModule):
@@ -17,22 +18,24 @@ class HousePricingModel(L.LightningModule):
            nn.Linear(in_features=min(in_features, 10), out_features=1),
         )
 
-        self.loss = nn.MSELoss()
-
     def forward(self, inputs):
         return self.net(inputs)
 
     def training_step(self, batch, batch_idx):
         inputs, target = batch["inputs"], batch["target"]
-        output = self.net(inputs).flatten()
-        loss = self.loss(target, output)
+        if target.dim() == 1:
+            target = target.view(target.size(0), -1)
+        output = self.net(inputs)
+        loss = F.mse_loss(output, target)
         self.log('train_loss', loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         inputs, target = batch["inputs"], batch["target"]
-        output = self.net(inputs).flatten()
-        loss = self.loss(target, output)
+        if target.dim() == 1:
+            target = target.view(target.size(0), -1)
+        output = self.net(inputs)
+        loss = F.mse_loss(output, target)
         self.log('val_loss', loss)
         return loss
 
