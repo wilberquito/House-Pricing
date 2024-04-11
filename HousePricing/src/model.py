@@ -41,4 +41,4 @@ class HousePricingModel(L.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.net.parameters(), lr=0.1)
+        return torch.optim.AdamW(self.parameters(), lr=0.1)
