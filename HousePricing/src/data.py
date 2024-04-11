@@ -228,6 +228,7 @@ class HousePricingDataModule(L.LightningDataModule):
             transformed_df.to_csv(csv_name, index=False)
 
     def setup(self, stage: str):
+        print(f"[INFO]: Setting up {stage} dataloader")
         if stage == "fit":
             housing_full = HousePricingDataset(join(self.data_preprocessed, "train.csv"))
             self.housing_train, self.housing_val = random_split(
