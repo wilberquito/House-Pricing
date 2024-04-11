@@ -148,6 +148,7 @@ class HousePricingDataset(Dataset):
 
         X = self.samples.iloc[idx]
         X = X.to_numpy()
+        X = torch.tensor(X, dtype=torch.float32)
 
         if not self.predict:
             y = self.labels.iloc[idx]
