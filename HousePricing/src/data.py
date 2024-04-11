@@ -244,21 +244,25 @@ class HousePricingDataModule(L.LightningDataModule):
     def train_dataloader(self):
         if not self.housing_train:
             raise Exception("[ERROR]: fit stage not set up")
-        return DataLoader(self.housing_train, batch_size=self.batch_size)
+        # return DataLoader(self.housing_train, batch_size=self.batch_size, num_workers=optim_workers())
+        return DataLoader(self.housing_train, batch_size=self.batch_size, shuffle=True)
 
     def val_dataloader(self):
         if not self.housing_val:
             raise Exception("[ERROR]: fit stage not set up")
-        return DataLoader(self.housing_val, batch_size=self.batch_size)
+        # return DataLoader(self.housing_val, batch_size=self.batch_size, num_workers=optim_workers())
+        return DataLoader(self.housing_val, batch_size=self.batch_size, shuffle=True)
 
     def test_dataloader(self):
         if not self.housing_test:
             raise Exception("[ERROR]: test stage not set up")
+        # return DataLoader(self.housing_test, batch_size=self.batch_size, num_workers=optim_workers())
         return DataLoader(self.housing_test, batch_size=self.batch_size)
 
     def predict_dataloader(self):
         if not self.housing_predict:
             raise Exception("[ERROR]: predict stage not set up")
+        # return DataLoader(self.housing_predict, batch_size=self.batch_size, num_workers=optim_workers())
         return DataLoader(self.housing_predict, batch_size=self.batch_size)
 
     def in_features(self) -> int:
