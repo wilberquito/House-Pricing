@@ -19,7 +19,8 @@ class HousePricingModel(L.LightningModule):
         )
 
     def forward(self, inputs):
-        return self.net(inputs)
+        output = self.net(inputs)
+        return output
 
     def training_step(self, batch, batch_idx):
         inputs, target = batch["inputs"], batch["target"]
