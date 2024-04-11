@@ -99,7 +99,7 @@ def columns_transformer():
     categorical_transformer = Pipeline(
         steps = [
             ("category", SimpleImputer(strategy="most_frequent")),
-            ("encoder", OneHotEncoder(sparse_output=False)),
+            ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
         ]
     )
 
