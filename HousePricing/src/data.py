@@ -20,6 +20,73 @@ from sklearn.model_selection import train_test_split
 
 from pathlib import Path
 
+from src.util import optim_workers
+
+
+def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    dataset_df = df.copy().reset_index(drop=True)
+
+    print(f"[INFO]: Dropping columns with full of NA or Identifiers. Current dataframe shape: {dataset_df.shape}")
+
+    dropped_colums = [
+        "Id",
+        "Alley",
+        "MasVnrType",
+        "FireplaceQu",
+        "PoolQC",
+        "Fence",
+        "MiscFeature"
+    ]
+
+    dataset_df = dataset_df.drop(dropped_colums, axis=1,
+                                errors="ignore")
+
+    print(f"[INFO]: Dropped columns with full of NA or Identifiers. Current dataframe shape: {dataset_df.shape}")
+
+    cat_columns = dataset_df.select_dtypes(include = ['O']).columns
+
+    for c in cat_columns:
+        dataset_df[c] = dataset_df[c].astype("category")
+
+    return dataset_df
+
+
+def preprocess_training_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    dataset_df = df.copy().reset_index(drop=True)
+    dataset_df = preprocess_dataframe(dataset_df)
+
+    cat_columns = dataset_df.select_dtypes(include = ["category"]).columns
+
+    print(f"[INFO]: Dropping categories types with few ocurrence. Current dataframe shape: {dataset_df.shape}")
+    dropping_ocurrences = {}
+
+    for c in cat_columns:
+        counts = dataset_df[c].value_counts().to_dict()
+        targets = [target for target, value in counts.items() if value <= 1]
+        if len(targets) >= 1:
+            dropping_ocurrences[c] = targets
+
+    for c, targets in dropping_ocurrences.items():
+        dataset_df = dataset_df[~dataset_df[c].isin(targets)].reset_index(drop=True)
+
+    print(f"[INFO]: Few ocurrences removed. Current dataframe shape: {dataset_df.shape}")
+
+    print(f"[INFO]: Dropping columns which contains just one type of category. Current dataframe shape: {dataset_df.shape}")
+    cols_to_drop = []
+
+    for c in cat_columns:
+        counts = dataset_df[c].value_counts().to_dict()
+        counts = {c: count for c, count in counts.items() if count >= 2}
+        if len(counts) <= 1:
+            cols_to_drop.append(c)
+
+    dataset_df = dataset_df.drop(cols_to_drop, errors="ignore", axis=1).reset_index(drop=True)
+
+    print(f"[INFO]: Columns with just one type of categroy dropped. Current dataframe shape: {dataset_df.shape}")
+
+    return dataset_df
+
+
 def columns_transformer():
 
     numeric_transformer = Pipeline(
@@ -118,15 +185,19 @@ class HousePricingDataModule(L.LightningDataModule):
 
         train_csv = join(self.data_raw, "all.csv")
         train_df = pd.read_csv(train_csv)
-        train_df = self._preprocess_dataframe(train_df)
+
+        print("[INFO]: Preprocessing training dataframe...")
+        train_df = preprocess_training_dataframe(train_df)
 
         X = train_df.drop("SalePrice", axis=1)
         y = train_df[["SalePrice"]]
-        X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.8, random_state=42)
+        X_train, X_test, y_train, y_test = \
+            train_test_split(X, y, train_size=0.8, random_state=42)
 
+        print("[INFO]: Preprocessing predict dataframe...")
         predict_csv = join(self.data_raw, "predict.csv")
         predict_df = pd.read_csv(predict_csv)
-        predict_df = self._preprocess_dataframe(predict_df)
+        predict_df = preprocess_dataframe(predict_df)
 
         self.columns_transformer = columns_transformer()
 
@@ -154,29 +225,6 @@ class HousePricingDataModule(L.LightningDataModule):
                 transformed_df["SalePrice"] = y_test["SalePrice"].values
 
             transformed_df.to_csv(csv_name, index=False)
-
-    def _preprocess_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        dataset_df = df.copy()
-
-        dropped_colums = [
-            "Id",
-            "Alley",
-            "MasVnrType",
-            "FireplaceQu",
-            "PoolQC",
-            "Fence",
-            "MiscFeature"
-        ]
-
-        dataset_df = dataset_df.drop(dropped_colums, axis=1,
-                                    errors="ignore")
-
-        cat_columns = dataset_df.select_dtypes(include = ['O']).columns
-
-        for c in cat_columns:
-            dataset_df[c] = dataset_df[c].astype("category")
-
-        return dataset_df
 
     def setup(self, stage: str):
         if stage == "fit":
