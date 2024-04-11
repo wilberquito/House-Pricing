@@ -21,6 +21,7 @@ from sklearn.model_selection import train_test_split
 from pathlib import Path
 
 from src.util import optim_workers
+from src.transforms import ToTensor
 
 
 def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
@@ -148,7 +149,6 @@ class HousePricingDataset(Dataset):
 
         X = self.samples.iloc[idx]
         X = X.to_numpy()
-        X = torch.tensor(X, dtype=torch.float32)
 
         if not self.predict:
             y = self.labels.iloc[idx]
@@ -230,16 +230,22 @@ class HousePricingDataModule(L.LightningDataModule):
     def setup(self, stage: str):
         print(f"[INFO]: Setting up {stage} dataloader")
         if stage == "fit":
-            housing_full = HousePricingDataset(join(self.data_preprocessed, "train.csv"))
+            housing_full = HousePricingDataset(
+                csv_file=join(self.data_preprocessed, "train.csv"), transform=ToTensor()
+            )
             self.housing_train, self.housing_val = random_split(
                 housing_full, [0.85, 0.15], generator=torch.Generator().manual_seed(42)
             )
 
         if stage == "test":
-            self.housing_test = HousePricingDataset(join(self.data_preprocessed, "test.csv"))
+            self.housing_test = HousePricingDataset(
+                csv_file=join(self.data_preprocessed, "test.csv"), transform=ToTensor()
+            )
 
         if stage == "predict":
-            self.housing_predict = HousePricingDataset(join(self.data_preprocessed, "predict.csv"), predict=True)
+            self.housing_predict = HousePricingDataset(
+                csv_file=join(self.data_preprocessed, "predict.csv"), predict=True, transform=ToTensor()
+            )
 
     def train_dataloader(self):
         if not self.housing_train:
