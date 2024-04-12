@@ -5,6 +5,9 @@ raw/
 preprocessed/
 
 lightning_logs/
+wandb/
+
+.env.secret
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
