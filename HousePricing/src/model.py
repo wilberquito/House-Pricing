@@ -3,19 +3,22 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-class HousePricingModel(L.LightningModule):
+class NeuralNetwork(L.LightningModule):
     def __init__(self, in_features: int):
         super().__init__()
 
+        print(f"[INFO]: Input size: {in_features}")
+
         self.net = nn.Sequential(
-           nn.Linear(in_features=in_features, out_features=in_features*3),
+           nn.Linear(in_features=in_features, out_features=512),
            nn.ReLU(),
-           nn.Linear(in_features=in_features*3, out_features=in_features*2),
+           nn.Linear(in_features=512, out_features=128),
            nn.ReLU(),
-           nn.Linear(in_features=in_features*2, out_features=min(in_features, 10)),
+           nn.Linear(in_features=128, out_features=128),
            nn.ReLU(),
-           nn.Linear(in_features=min(in_features, 10), out_features=1),
+           nn.Linear(in_features=128, out_features=64),
+           nn.ReLU(),
+           nn.Linear(in_features=64, out_features=1),
         )
 
     def forward(self, inputs):
