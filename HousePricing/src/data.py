@@ -227,7 +227,7 @@ class HousePricingDataModule(L.LightningDataModule):
             transformed_df.to_csv(csv_name, index=False)
 
     def setup(self, stage: str):
-        print(f"[INFO]: Setting up {stage} dataloader")
+        print(f"[INFO]: Setting up {stage} dataset/s")
         if stage == "fit":
             housing_full = HousePricingDataset(
                 csv_file=join(self.data_preprocessed, "train.csv"), transform=ToTensor()
@@ -235,6 +235,8 @@ class HousePricingDataModule(L.LightningDataModule):
             self.housing_train, self.housing_val = random_split(
                 housing_full, [0.85, 0.15], generator=torch.Generator().manual_seed(42)
             )
+            print(f"[INFO]: Train dataset size: {len(self.housing_train)}")
+            print(f"[INFO]: Validation dataset size: {len(self.housing_val)}")
 
         if stage == "test":
             self.housing_test = HousePricingDataset(
@@ -250,25 +252,33 @@ class HousePricingDataModule(L.LightningDataModule):
         if not self.housing_train:
             raise Exception("[ERROR]: fit stage not set up")
         # return DataLoader(self.housing_train, batch_size=self.batch_size, num_workers=optim_workers())
-        return DataLoader(self.housing_train, batch_size=self.batch_size, shuffle=True)
+        dl = DataLoader(self.housing_train, batch_size=self.batch_size, shuffle=True)
+        print(f"[INFO]: Train dataloader size: {len(dl)}")
+        return dl
 
     def val_dataloader(self):
         if not self.housing_val:
             raise Exception("[ERROR]: fit stage not set up")
         # return DataLoader(self.housing_val, batch_size=self.batch_size, num_workers=optim_workers())
-        return DataLoader(self.housing_val, batch_size=self.batch_size, shuffle=True)
+        dl = DataLoader(self.housing_val, batch_size=self.batch_size, shuffle=True)
+        print(f"[INFO]: Validation dataloader size: {len(dl)}")
+        return dl
 
     def test_dataloader(self):
         if not self.housing_test:
             raise Exception("[ERROR]: test stage not set up")
         # return DataLoader(self.housing_test, batch_size=self.batch_size, num_workers=optim_workers())
-        return DataLoader(self.housing_test, batch_size=self.batch_size)
+        dl = DataLoader(self.housing_test, batch_size=self.batch_size)
+        print(f"[INFO]: Test dataloader size: {len(dl)}")
+        return dl
 
     def predict_dataloader(self):
         if not self.housing_predict:
             raise Exception("[ERROR]: predict stage not set up")
         # return DataLoader(self.housing_predict, batch_size=self.batch_size, num_workers=optim_workers())
-        return DataLoader(self.housing_predict, batch_size=self.batch_size)
+        dl = DataLoader(self.housing_predict, batch_size=self.batch_size)
+        print(f"[INFO]: Predict dataloader size: {len(dl)}")
+        return dl
 
     def in_features(self) -> int:
         """Computes the number of features expected for the dataset
