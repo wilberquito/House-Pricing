@@ -29,7 +29,7 @@ class NeuralNetwork(L.LightningModule):
         inputs, target = batch["inputs"], batch["target"]
         if target.dim() == 1:
             target = target.view(target.size(0), -1)
-        output = self.net(inputs)
+        output = self(inputs)
         loss = F.mse_loss(output, target)
         self.log('train_loss', loss)
         return loss
@@ -38,7 +38,7 @@ class NeuralNetwork(L.LightningModule):
         inputs, target = batch["inputs"], batch["target"]
         if target.dim() == 1:
             target = target.view(target.size(0), -1)
-        output = self.net(inputs)
+        output = self(inputs)
         loss = F.mse_loss(output, target)
         self.log('val_loss', loss)
         return loss
