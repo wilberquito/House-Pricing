@@ -8,12 +8,11 @@ import pandas as pd
 import lightning as L
 from torch.utils.data import random_split, DataLoader
 
-from sklearn.preprocessing import StandardScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.compose import make_column_selector
 
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 from sklearn.pipeline import Pipeline
 
 from sklearn.model_selection import train_test_split
@@ -93,7 +92,7 @@ def columns_transformer():
     numeric_transformer = Pipeline(
         steps = [
             ("imputer", SimpleImputer(strategy="median")),
-            ("scaler", StandardScaler()),
+            ("scaler", MinMaxScaler()),
         ]
     )
 
