@@ -43,5 +43,19 @@ class NeuralNetwork(L.LightningModule):
         self.log('val_loss', loss)
         return loss
 
+    def test_step(self, batch):
+        inputs, target = batch["inputs"], batch["target"]
+        if target.dim() == 1:
+            target = target.view(target.size(0), -1)
+        output = self(inputs)
+        loss = F.mse_loss(output, target)
+        self.log('val_loss', loss)
+        return loss
+
+    def predict_step(self, batch):
+        inputs = batch["inputs"]
+        output = self(inputs)
+        return output
+
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=0.1)
