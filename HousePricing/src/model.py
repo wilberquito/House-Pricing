@@ -49,7 +49,7 @@ class NeuralNetwork(L.LightningModule):
             target = target.view(target.size(0), -1)
         output = self(inputs)
         loss = F.mse_loss(output, target)
-        self.log('val_loss', loss)
+        self.log('test_loss', loss)
         return loss
 
     def predict_step(self, batch):
