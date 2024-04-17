@@ -4,13 +4,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class NeuralNetwork(L.LightningModule):
-    def __init__(self, in_features: int):
+    def __init__(self, input_size: int):
         super().__init__()
 
-        print(f"[INFO]: Input size: {in_features}")
+        self.input_size = input_size
+
+        print(f"[INFO]: Input size: {self.input_size}")
 
         self.net = nn.Sequential(
-           nn.Linear(in_features=in_features, out_features=512),
+           nn.Linear(in_features=self.input_size, out_features=512),
            nn.ReLU(),
            nn.Linear(in_features=512, out_features=128),
            nn.ReLU(),
@@ -59,3 +61,8 @@ class NeuralNetwork(L.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=0.1)
+
+    def on_train_start(self) -> None:
+            print(f"[INFO]: Logger save dir: {self.trainer.logger.save_dir}")
+            print(f"[INFO]: Logger name: {self.trainer.logger.name}")
+            print(f"[INFO]: Logger version: {self.trainer.logger.version}")
