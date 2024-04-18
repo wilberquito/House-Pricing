@@ -5,3 +5,4 @@ seaborn
 scikit-learn
 python-dotenv
 wandb
+Faker
