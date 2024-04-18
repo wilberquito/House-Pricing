@@ -1,4 +1,5 @@
 import os
+import subprocess
 from faker import Faker
 
 def optim_workers():
@@ -12,3 +13,10 @@ def fake_name():
         digits=True, upper_case=True, lower_case=False
     )
     return fake_name + "_" + fake_pwd
+
+
+def download_data(script_name: str) -> None:
+    if os.path.exists("./data/"):
+        print("[INFO]: Skipping downloading data. Data is already downloaded")
+    else:
+        subprocess.call(["sh", script_name])
