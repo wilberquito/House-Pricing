@@ -161,7 +161,7 @@ class HousePricingDataset(Dataset):
 
 
 class HousePricingDataModule(L.LightningDataModule):
-    def __init__(self, data_dir: Optional[str] = None, batch_size: int = 32):
+    def __init__(self, data_dir: Optional[str] = None, batch_size: int = 32, eval_batch_size = 128):
         super().__init__()
         self.data_dir = data_dir if data_dir else os.getcwd()
         self.data_zip = join(self.data_dir, "data.zip")
@@ -170,6 +170,7 @@ class HousePricingDataModule(L.LightningDataModule):
         Path(self.data_preprocessed).mkdir(parents=True, exist_ok=True)
 
         self.batch_size = batch_size
+        self.eval_batch_size = eval_batch_size
 
         self.housing_train = None
         self.housing_val = None
@@ -260,7 +261,7 @@ class HousePricingDataModule(L.LightningDataModule):
         if not self.housing_val:
             raise Exception("[ERROR]: fit stage not set up")
         # return DataLoader(self.housing_val, batch_size=self.batch_size, num_workers=optim_workers())
-        dl = DataLoader(self.housing_val, batch_size=self.batch_size, shuffle=True)
+        dl = DataLoader(self.housing_val, batch_size=self.eval_batch_size, shuffle=True)
         print(f"[INFO]: Validation dataloader size: {len(dl)}")
         return dl
 
@@ -268,7 +269,7 @@ class HousePricingDataModule(L.LightningDataModule):
         if not self.housing_test:
             raise Exception("[ERROR]: test stage not set up")
         # return DataLoader(self.housing_test, batch_size=self.batch_size, num_workers=optim_workers())
-        dl = DataLoader(self.housing_test, batch_size=self.batch_size)
+        dl = DataLoader(self.housing_test, batch_size=self.eval_batch_size)
         print(f"[INFO]: Test dataloader size: {len(dl)}")
         return dl
 
@@ -276,7 +277,7 @@ class HousePricingDataModule(L.LightningDataModule):
         if not self.housing_predict:
             raise Exception("[ERROR]: predict stage not set up")
         # return DataLoader(self.housing_predict, batch_size=self.batch_size, num_workers=optim_workers())
-        dl = DataLoader(self.housing_predict, batch_size=self.batch_size)
+        dl = DataLoader(self.housing_predict, batch_size=self.eval_batch_size)
         print(f"[INFO]: Predict dataloader size: {len(dl)}")
         return dl
 
