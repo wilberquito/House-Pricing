@@ -1,7 +1,6 @@
 import os
 from os.path import join
 from typing import Optional
-import zipfile
 import torch
 from torch.utils.data import Dataset
 import pandas as pd
@@ -19,7 +18,7 @@ from sklearn.model_selection import train_test_split
 
 from pathlib import Path
 
-from src.util import optim_workers
+from src.util import optim_workers, download_data
 from src.transforms import ToTensor
 
 
@@ -122,22 +121,20 @@ def columns_transformer():
 class HousePricingDataset(Dataset):
     """House Pricing dataset."""
 
-    def __init__(self, csv_file: str, predict: bool = False, transform=None):
+    def __init__(self, df: pd.DataFrame, predict: bool = False, transform=None):
         """
         Arguments:
-            csv_file (string): Path to the csv file with annotations.
+            df (pd.DataFrame): dataframe to use as dataset.
             predict (bool): either to train or to make predictions
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
-        dataset_df = pd.read_csv(csv_file)
-
         self.predict = predict
         self.transform = transform
 
-        self.samples = dataset_df.drop("SalePrice", axis=1, errors="ignore")
+        self.samples = df.drop("SalePrice", axis=1, errors="ignore")
         if not self.predict:
-            self.labels = dataset_df["SalePrice"]
+            self.labels = df["SalePrice"]
 
     def __len__(self):
         return len(self.samples)
@@ -163,29 +160,27 @@ class HousePricingDataset(Dataset):
 class HousePricingDataModule(L.LightningDataModule):
     def __init__(self, data_dir: Optional[str] = None, batch_size: int = 32, eval_batch_size = 128):
         super().__init__()
-        self.data_dir = data_dir if data_dir else os.getcwd()
-        self.data_zip = join(self.data_dir, "data.zip")
-        self.data_raw = join(self.data_dir, "raw")
-        self.data_preprocessed = join(self.data_dir, "preprocessed")
-        Path(self.data_preprocessed).mkdir(parents=True, exist_ok=True)
 
         self.batch_size = batch_size
         self.eval_batch_size = eval_batch_size
 
-        self.housing_train = None
-        self.housing_val = None
-        self.housing_test = None
-        self.housing_predict = None
+        self.data_dir = data_dir if data_dir else join("data")
+
+        self.train_file = join(self.data_dir, "train.csv")
+        self.predict_file = join(self.data_dir, "test.csv")
+
+        self.train_dataset = None
+        self.validation_dataset = None
+        self.test_dataset = None
+        self.predict_dataset = None
 
         self.columns_transformer = None
 
     def prepare_data(self) -> None:
 
-        with zipfile.ZipFile(self.data_zip,"r") as zip_ref:
-            zip_ref.extractall(self.data_raw)
+        download_data()
 
-        train_csv = join(self.data_raw, "all.csv")
-        train_df = pd.read_csv(train_csv)
+        train_df = pd.read_csv(self.train_file)
 
         print("[INFO]: Preprocessing training dataframe...")
         train_df = preprocess_training_dataframe(train_df)
@@ -233,51 +228,51 @@ class HousePricingDataModule(L.LightningDataModule):
             housing_full = HousePricingDataset(
                 csv_file=join(self.data_preprocessed, "train.csv"), transform=ToTensor()
             )
-            self.housing_train, self.housing_val = random_split(
+            self.train_dataset, self.validation_dataset = random_split(
                 housing_full, [0.85, 0.15], generator=torch.Generator().manual_seed(42)
             )
-            print(f"[INFO]: Train dataset size: {len(self.housing_train)}")
-            print(f"[INFO]: Validation dataset size: {len(self.housing_val)}")
+            print(f"[INFO]: Train dataset size: {len(self.train_dataset)}")
+            print(f"[INFO]: Validation dataset size: {len(self.validation_dataset)}")
 
         if stage == "test":
-            self.housing_test = HousePricingDataset(
+            self.test_dataset = HousePricingDataset(
                 csv_file=join(self.data_preprocessed, "test.csv"), transform=ToTensor()
             )
 
         if stage == "predict":
-            self.housing_predict = HousePricingDataset(
+            self.predict_dataset = HousePricingDataset(
                 csv_file=join(self.data_preprocessed, "predict.csv"), predict=True, transform=ToTensor()
             )
 
     def train_dataloader(self):
-        if not self.housing_train:
+        if not self.train_dataset:
             raise Exception("[ERROR]: fit stage not set up")
         # return DataLoader(self.housing_train, batch_size=self.batch_size, num_workers=optim_workers())
-        dl = DataLoader(self.housing_train, batch_size=self.batch_size, shuffle=True)
+        dl = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
         print(f"[INFO]: Train dataloader size: {len(dl)}")
         return dl
 
     def val_dataloader(self):
-        if not self.housing_val:
+        if not self.validation_dataset:
             raise Exception("[ERROR]: fit stage not set up")
         # return DataLoader(self.housing_val, batch_size=self.batch_size, num_workers=optim_workers())
-        dl = DataLoader(self.housing_val, batch_size=self.eval_batch_size, shuffle=True)
+        dl = DataLoader(self.validation_dataset, batch_size=self.eval_batch_size, shuffle=True)
         print(f"[INFO]: Validation dataloader size: {len(dl)}")
         return dl
 
     def test_dataloader(self):
-        if not self.housing_test:
+        if not self.test_dataset:
             raise Exception("[ERROR]: test stage not set up")
         # return DataLoader(self.housing_test, batch_size=self.batch_size, num_workers=optim_workers())
-        dl = DataLoader(self.housing_test, batch_size=self.eval_batch_size)
+        dl = DataLoader(self.test_dataset, batch_size=self.eval_batch_size)
         print(f"[INFO]: Test dataloader size: {len(dl)}")
         return dl
 
     def predict_dataloader(self):
-        if not self.housing_predict:
+        if not self.predict_dataset:
             raise Exception("[ERROR]: predict stage not set up")
         # return DataLoader(self.housing_predict, batch_size=self.batch_size, num_workers=optim_workers())
-        dl = DataLoader(self.housing_predict, batch_size=self.eval_batch_size)
+        dl = DataLoader(self.predict_dataset, batch_size=self.eval_batch_size)
         print(f"[INFO]: Predict dataloader size: {len(dl)}")
         return dl
 
