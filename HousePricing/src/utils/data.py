@@ -67,7 +67,6 @@ def setup_dataframes(
     dropped_columns = []
 
     if test:
-
         df_train, df_test = \
             train_test_split(df_train, train_size=1-test_size, random_state=42)
 
