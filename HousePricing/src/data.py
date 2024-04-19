@@ -1,6 +1,6 @@
 import os
 from os.path import join
-from typing import Optional
+from typing import Optional, Dict
 import torch
 from torch.utils.data import Dataset
 import pandas as pd
@@ -18,104 +18,8 @@ from sklearn.model_selection import train_test_split
 
 from pathlib import Path
 
-from src.util import optim_workers, download_data
+from src.utils.data import download_data, prepare_hold_out_scheme, column_transformer
 from src.transforms import ToTensor
-
-
-def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    dataset_df = df.copy().reset_index(drop=True)
-
-    print(f"[INFO]: Dropping columns with full of NA or Identifiers. Current dataframe shape: {dataset_df.shape}")
-
-    dropped_colums = [
-        "Id",
-        "Alley",
-        "MasVnrType",
-        "FireplaceQu",
-        "PoolQC",
-        "Fence",
-        "MiscFeature"
-    ]
-
-    dataset_df = dataset_df.drop(dropped_colums, axis=1,
-                                errors="ignore")
-
-    print(f"[INFO]: Dropped columns with full of NA or Identifiers. Current dataframe shape: {dataset_df.shape}")
-
-    cat_columns = dataset_df.select_dtypes(include = ['O']).columns
-
-    for c in cat_columns:
-        dataset_df[c] = dataset_df[c].astype("category")
-
-    return dataset_df
-
-
-def preprocess_training_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    dataset_df = df.copy().reset_index(drop=True)
-    dataset_df = preprocess_dataframe(dataset_df)
-
-    cat_columns = dataset_df.select_dtypes(include = ["category"]).columns
-
-    print(f"[INFO]: Dropping categories types with few ocurrence. Current dataframe shape: {dataset_df.shape}")
-    dropping_ocurrences = {}
-
-    for c in cat_columns:
-        counts = dataset_df[c].value_counts().to_dict()
-        targets = [target for target, value in counts.items() if value <= 1]
-        if len(targets) >= 1:
-            dropping_ocurrences[c] = targets
-
-    for c, targets in dropping_ocurrences.items():
-        dataset_df = dataset_df[~dataset_df[c].isin(targets)].reset_index(drop=True)
-
-    print(f"[INFO]: Few ocurrences removed. Current dataframe shape: {dataset_df.shape}")
-
-    print(f"[INFO]: Dropping columns which contains just one type of category. Current dataframe shape: {dataset_df.shape}")
-    cols_to_drop = []
-
-    for c in cat_columns:
-        counts = dataset_df[c].value_counts().to_dict()
-        counts = {c: count for c, count in counts.items() if count >= 2}
-        if len(counts) <= 1:
-            cols_to_drop.append(c)
-
-    dataset_df = dataset_df.drop(cols_to_drop, errors="ignore", axis=1).reset_index(drop=True)
-
-    print(f"[INFO]: Columns with just one type of categroy dropped. Current dataframe shape: {dataset_df.shape}")
-
-    return dataset_df
-
-
-def columns_transformer():
-
-    numeric_transformer = Pipeline(
-        steps = [
-            ("imputer", SimpleImputer(strategy="median")),
-            ("scaler", MinMaxScaler()),
-        ]
-    )
-
-    categorical_transformer = Pipeline(
-        steps = [
-            ("category", SimpleImputer(strategy="most_frequent")),
-            ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-        ]
-    )
-
-    ct = ColumnTransformer([
-        (
-            "num",
-            numeric_transformer,
-            make_column_selector(dtype_include=["float64", "int64"])
-        ),
-        (
-            "cat",
-            categorical_transformer,
-            make_column_selector(dtype_include=["category"])
-        ),
-    ])
-
-    return ct
 
 
 class HousePricingDataset(Dataset):
@@ -158,8 +62,24 @@ class HousePricingDataset(Dataset):
 
 
 class HousePricingDataModule(L.LightningDataModule):
-    def __init__(self, data_dir: Optional[str] = None, batch_size: int = 32, eval_batch_size = 128):
+    def __init__(
+        self,
+        data_dir: Optional[str] = None,
+        batch_size: int = 32,
+        eval_batch_size = 128,
+        validate = True,
+        test = True,
+        validation_size = 0.1,
+        test_size = 0.1
+    ):
+
         super().__init__()
+
+        self.validate = validate
+        self.test = test
+
+        self.validation_size = validation_size
+        self.test_size = test_size
 
         self.batch_size = batch_size
         self.eval_batch_size = eval_batch_size
@@ -167,82 +87,67 @@ class HousePricingDataModule(L.LightningDataModule):
         self.data_dir = data_dir if data_dir else join("data")
 
         self.train_file = join(self.data_dir, "train.csv")
-        self.predict_file = join(self.data_dir, "test.csv")
+        self.predict_file = join(self.data_dir, "predict.csv")
+
+        self.train_df = None
+        self.test_df = None
 
         self.train_dataset = None
         self.validation_dataset = None
         self.test_dataset = None
         self.predict_dataset = None
 
-        self.columns_transformer = None
+        self.column_transformer = column_transformer()
 
     def prepare_data(self) -> None:
-
         download_data()
+        self._setup_dataframes()
 
-        train_df = pd.read_csv(self.train_file)
+    def _setup_dataframes(self):
+        dataframes = prepare_hold_out_scheme(
+            self.train_file,
+            *self.column_transformer,
+            test=self.test,
+            test_size=self.test_size
+        )
 
-        print("[INFO]: Preprocessing training dataframe...")
-        train_df = preprocess_training_dataframe(train_df)
-
-        X = train_df.drop("SalePrice", axis=1)
-        y = train_df[["SalePrice"]]
-        X_train, X_test, y_train, y_test = \
-            train_test_split(X, y, train_size=0.8, random_state=42)
-
-        print("[INFO]: Preprocessing predict dataframe...")
-        predict_csv = join(self.data_raw, "predict.csv")
-        predict_df = pd.read_csv(predict_csv)
-        predict_df = preprocess_dataframe(predict_df)
-
-        self.columns_transformer = columns_transformer()
-
-        c_features = {
-            "train": X_train,
-            "test": X_test,
-            "predict": predict_df
-        }
-
-        for stage, X in c_features.items():
-            csv_name = join(self.data_preprocessed, stage + ".csv")
-
-            if stage == "train":
-                data = self.columns_transformer.fit_transform(X)
-            else:
-                data = self.columns_transformer.transform(X)
-
-            df_X = pd.DataFrame(data=data, columns=self.columns_transformer.get_feature_names_out())
-
-            transformed_df = df_X.copy()
-
-            if stage == "train":
-                transformed_df["SalePrice"] = y_train["SalePrice"].values
-            elif stage == "test":
-                transformed_df["SalePrice"] = y_test["SalePrice"].values
-
-            transformed_df.to_csv(csv_name, index=False)
+        self.train_df = dataframes["train"]
+        if "test" in dataframes:
+            self.test_df = dataframes["test"]
 
     def setup(self, stage: str):
         print(f"[INFO]: Setting up {stage} dataset/s")
         if stage == "fit":
-            housing_full = HousePricingDataset(
-                csv_file=join(self.data_preprocessed, "train.csv"), transform=ToTensor()
-            )
-            self.train_dataset, self.validation_dataset = random_split(
-                housing_full, [0.85, 0.15], generator=torch.Generator().manual_seed(42)
-            )
-            print(f"[INFO]: Train dataset size: {len(self.train_dataset)}")
-            print(f"[INFO]: Validation dataset size: {len(self.validation_dataset)}")
-
+            self._setup_fit_datasets()
         if stage == "test":
-            self.test_dataset = HousePricingDataset(
-                csv_file=join(self.data_preprocessed, "test.csv"), transform=ToTensor()
-            )
-
+            self._setup_test_dataset()
         if stage == "predict":
             self.predict_dataset = HousePricingDataset(
                 csv_file=join(self.data_preprocessed, "predict.csv"), predict=True, transform=ToTensor()
             )
+
+    def _setup_fit_datasets(self) -> None:
+        train_dataset = HousePricingDataset(
+            self.train_df,
+            transform=ToTensor()
+        )
+        if self.validate:
+            self.train_dataset, self.validation_dataset = random_split(
+                train_dataset,
+                [1 - self.validation_size, self.validation_size],
+                generator=torch.Generator().manual_seed(42)
+            )
+            print(f"[INFO]: Train dataset size: {len(self.train_dataset)}")
+            print(f"[INFO]: Validation dataset size: {len(self.validation_dataset)}")
+        else:
+            self.train_dataset = train_dataset
+            print(f"[INFO]: Train dataset size: {len(self.train_dataset)}")
+
+    def _setup_test_dataset(self) -> None:
+        self.test_dataset = HousePricingDataset(
+            self.test_df,
+            transform=ToTensor()
+        )
 
     def train_dataloader(self):
         if not self.train_dataset:
@@ -279,7 +184,6 @@ class HousePricingDataModule(L.LightningDataModule):
     def in_features(self) -> int:
         """Computes the number of features expected for the dataset
         """
-
         train_csv = join(self.data_preprocessed, "train" + ".csv")
         if not os.path.isfile(train_csv):
             print("[WARN]: preprocessed dataset are not created... setting up them")
