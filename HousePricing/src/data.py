@@ -7,18 +7,14 @@ import pandas as pd
 import lightning as L
 from torch.utils.data import random_split, DataLoader
 
-from sklearn.compose import ColumnTransformer
-from sklearn.compose import make_column_selector
-
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
-from sklearn.pipeline import Pipeline
-
-from sklearn.model_selection import train_test_split
 
 from pathlib import Path
 
-from src.utils.data import download_data, prepare_hold_out_scheme, column_transformer
+from src.utils.data import (
+    download_data,
+    column_transformer,
+    setup_dataframes
+)
 from src.transforms import ToTensor
 
 
@@ -67,16 +63,18 @@ class HousePricingDataModule(L.LightningDataModule):
         data_dir: Optional[str] = None,
         batch_size: int = 32,
         eval_batch_size = 128,
-        validate = True,
-        test = True,
+        validation = True,
         validation_size = 0.1,
-        test_size = 0.1
+        test = True,
+        test_size = 0.1,
+        predict = True,
     ):
 
         super().__init__()
 
-        self.validate = validate
+        self.validation = validation
         self.test = test
+        self.predict = predict
 
         self.validation_size = validation_size
         self.test_size = test_size
@@ -86,11 +84,13 @@ class HousePricingDataModule(L.LightningDataModule):
 
         self.data_dir = data_dir if data_dir else join("data")
 
-        self.train_file = join(self.data_dir, "train.csv")
-        self.predict_file = join(self.data_dir, "predict.csv")
+        self.train_csv = join(self.data_dir, "train.csv")
+        self.predict_csv = join(self.data_dir, "predict.csv")
 
         self.train_df = None
         self.test_df = None
+        self.validation_df = None
+        self.predict_df = None
 
         self.train_dataset = None
         self.validation_dataset = None
@@ -100,20 +100,28 @@ class HousePricingDataModule(L.LightningDataModule):
         self.column_transformer = column_transformer()
 
     def prepare_data(self) -> None:
-        download_data()
+        download_data("download_data.sh")
         self._setup_dataframes()
 
     def _setup_dataframes(self):
-        dataframes = prepare_hold_out_scheme(
-            self.train_file,
-            *self.column_transformer,
+
+        dataframes = setup_dataframes(
+            self.train_csv,
+            self.column_transformer,
             test=self.test,
-            test_size=self.test_size
+            test_size=self.test_size,
+            predict=self.predict,
+            predict_csv=self.predict_csv
         )
 
-        self.train_df = dataframes["train"]
-        if "test" in dataframes:
+        print(f"INFO: Set up datasets: {dataframes.keys()}")
+
+        if "train" in dataframes:
+            self.train_df = dataframes["train"]
+        elif "test" in dataframes:
             self.test_df = dataframes["test"]
+        elif "predict" in dataframes:
+            self.predict_df = dataframes["predict"]
 
     def setup(self, stage: str):
         print(f"[INFO]: Setting up {stage} dataset/s")
@@ -122,16 +130,14 @@ class HousePricingDataModule(L.LightningDataModule):
         if stage == "test":
             self._setup_test_dataset()
         if stage == "predict":
-            self.predict_dataset = HousePricingDataset(
-                csv_file=join(self.data_preprocessed, "predict.csv"), predict=True, transform=ToTensor()
-            )
+            self._setup_predict_dataset()
 
     def _setup_fit_datasets(self) -> None:
         train_dataset = HousePricingDataset(
             self.train_df,
             transform=ToTensor()
         )
-        if self.validate:
+        if self.validation:
             self.train_dataset, self.validation_dataset = random_split(
                 train_dataset,
                 [1 - self.validation_size, self.validation_size],
@@ -146,6 +152,13 @@ class HousePricingDataModule(L.LightningDataModule):
     def _setup_test_dataset(self) -> None:
         self.test_dataset = HousePricingDataset(
             self.test_df,
+            transform=ToTensor()
+        )
+
+    def _setup_predict_dataset(self) -> None:
+        self.predict_dataset = HousePricingDataset(
+            self.predict_df,
+            predict=True,
             transform=ToTensor()
         )
 
@@ -182,15 +195,6 @@ class HousePricingDataModule(L.LightningDataModule):
         return dl
 
     def in_features(self) -> int:
-        """Computes the number of features expected for the dataset
-        """
-        train_csv = join(self.data_preprocessed, "train" + ".csv")
-        if not os.path.isfile(train_csv):
-            print("[WARN]: preprocessed dataset are not created... setting up them")
-            self.setup()
-
-        df = pd.read_csv(train_csv)
-        _, in_features = df.shape
-        return in_features - 1
+        return self.train_df.shape[1] - 1
 
 
