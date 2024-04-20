@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class NeuralNetwork(L.LightningModule):
     def __init__(self, input_size: int):
         super().__init__()
@@ -12,15 +13,15 @@ class NeuralNetwork(L.LightningModule):
         print(f"[INFO]: Input size: {self.input_size}")
 
         self.net = nn.Sequential(
-           nn.Linear(in_features=self.input_size, out_features=512),
-           nn.ReLU(),
-           nn.Linear(in_features=512, out_features=128),
-           nn.ReLU(),
-           nn.Linear(in_features=128, out_features=128),
-           nn.ReLU(),
-           nn.Linear(in_features=128, out_features=64),
-           nn.ReLU(),
-           nn.Linear(in_features=64, out_features=1),
+            nn.Linear(in_features=self.input_size, out_features=512),
+            nn.ReLU(),
+            nn.Linear(in_features=512, out_features=128),
+            nn.ReLU(),
+            nn.Linear(in_features=128, out_features=128),
+            nn.ReLU(),
+            nn.Linear(in_features=128, out_features=64),
+            nn.ReLU(),
+            nn.Linear(in_features=64, out_features=1),
         )
 
     def forward(self, inputs):
@@ -33,7 +34,7 @@ class NeuralNetwork(L.LightningModule):
             target = target.view(target.size(0), -1)
         output = self(inputs)
         loss = F.mse_loss(output, target)
-        self.log('train_loss', loss)
+        self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -42,7 +43,7 @@ class NeuralNetwork(L.LightningModule):
             target = target.view(target.size(0), -1)
         output = self(inputs)
         loss = F.mse_loss(output, target)
-        self.log('val_loss', loss)
+        self.log("val_loss", loss)
         return loss
 
     def test_step(self, batch):
@@ -51,7 +52,7 @@ class NeuralNetwork(L.LightningModule):
             target = target.view(target.size(0), -1)
         output = self(inputs)
         loss = F.mse_loss(output, target)
-        self.log('test_loss', loss)
+        self.log("test_loss", loss)
         return loss
 
     def predict_step(self, batch):
@@ -63,6 +64,6 @@ class NeuralNetwork(L.LightningModule):
         return torch.optim.AdamW(self.parameters(), lr=0.1)
 
     def on_train_start(self) -> None:
-            print(f"[INFO]: Logger save dir: {self.trainer.logger.save_dir}")
-            print(f"[INFO]: Logger name: {self.trainer.logger.name}")
-            print(f"[INFO]: Logger version: {self.trainer.logger.version}")
+        print(f"[INFO]: Logger save dir: {self.trainer.logger.save_dir}")
+        print(f"[INFO]: Logger name: {self.trainer.logger.name}")
+        print(f"[INFO]: Logger version: {self.trainer.logger.version}")

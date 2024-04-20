@@ -1,8 +1,8 @@
 import torch
 
+
 class ToTensor(object):
-    """Transform sample into Tensor
-    """
+    """Transform sample into Tensor"""
 
     def __call__(self, sample):
         if "target" in sample:
@@ -14,4 +14,3 @@ class ToTensor(object):
             inputs = sample["inputs"]
             inputs = torch.tensor(inputs, dtype=torch.float32)
             return {"inputs": inputs}
-
