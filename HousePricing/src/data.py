@@ -103,16 +103,16 @@ class HousePricingDataModule(L.LightningDataModule):
             test=self.test,
             test_size=self.test_size,
             predict=self.predict,
-            predict_csv=self.predict_csv
+            predict_csv=self.predict_csv,
         )
 
-        print(f"INFO: Set up datasets: {dataframes.keys()}")
+        print(f"[INFO]: Set up datasets: {dataframes.keys()}")
 
-        if "train" in dataframes:
-            self.train_df = dataframes["train"]
-        elif "test" in dataframes:
+        if "fit" in dataframes:
+            self.fit_df = dataframes["fit"]
+        if "test" in dataframes:
             self.test_df = dataframes["test"]
-        elif "predict" in dataframes:
+        if "predict" in dataframes:
             self.predict_df = dataframes["predict"]
 
     def setup(self, stage: str):
