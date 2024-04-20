@@ -1,6 +1,5 @@
-import os
 from os.path import join
-from typing import Optional, Dict
+from typing import Optional
 import torch
 from torch.utils.data import Dataset
 import pandas as pd
@@ -8,13 +7,7 @@ import lightning as L
 from torch.utils.data import random_split, DataLoader
 
 
-from pathlib import Path
-
-from src.utils.data import (
-    download_data,
-    column_transformer,
-    setup_dataframes
-)
+from src.utils.data import download_data, column_transformer, setup_dataframes
 from src.transforms import ToTensor
 
 
@@ -62,12 +55,12 @@ class HousePricingDataModule(L.LightningDataModule):
         self,
         data_dir: Optional[str] = None,
         batch_size: int = 32,
-        eval_batch_size = 128,
-        validation = True,
-        validation_size = 0.1,
-        test = True,
-        test_size = 0.1,
-        predict = True,
+        eval_batch_size=128,
+        validation=True,
+        validation_size=0.1,
+        test=True,
+        test_size=0.1,
+        predict=True,
     ):
 
         super().__init__()
@@ -87,9 +80,8 @@ class HousePricingDataModule(L.LightningDataModule):
         self.train_csv = join(self.data_dir, "train.csv")
         self.predict_csv = join(self.data_dir, "predict.csv")
 
-        self.train_df = None
+        self.fit_df = None
         self.test_df = None
-        self.validation_df = None
         self.predict_df = None
 
         self.train_dataset = None
@@ -133,15 +125,12 @@ class HousePricingDataModule(L.LightningDataModule):
             self._setup_predict_dataset()
 
     def _setup_fit_datasets(self) -> None:
-        train_dataset = HousePricingDataset(
-            self.train_df,
-            transform=ToTensor()
-        )
+        train_dataset = HousePricingDataset(self.fit_df, transform=ToTensor())
         if self.validation:
             self.train_dataset, self.validation_dataset = random_split(
                 train_dataset,
                 [1 - self.validation_size, self.validation_size],
-                generator=torch.Generator().manual_seed(42)
+                generator=torch.Generator().manual_seed(42),
             )
             print(f"[INFO]: Train dataset size: {len(self.train_dataset)}")
             print(f"[INFO]: Validation dataset size: {len(self.validation_dataset)}")
@@ -150,16 +139,11 @@ class HousePricingDataModule(L.LightningDataModule):
             print(f"[INFO]: Train dataset size: {len(self.train_dataset)}")
 
     def _setup_test_dataset(self) -> None:
-        self.test_dataset = HousePricingDataset(
-            self.test_df,
-            transform=ToTensor()
-        )
+        self.test_dataset = HousePricingDataset(self.test_df, transform=ToTensor())
 
     def _setup_predict_dataset(self) -> None:
         self.predict_dataset = HousePricingDataset(
-            self.predict_df,
-            predict=True,
-            transform=ToTensor()
+            self.predict_df, predict=True, transform=ToTensor()
         )
 
     def train_dataloader(self):
@@ -174,7 +158,9 @@ class HousePricingDataModule(L.LightningDataModule):
         if not self.validation_dataset:
             raise Exception("[ERROR]: fit stage not set up")
         # return DataLoader(self.housing_val, batch_size=self.batch_size, num_workers=optim_workers())
-        dl = DataLoader(self.validation_dataset, batch_size=self.eval_batch_size, shuffle=True)
+        dl = DataLoader(
+            self.validation_dataset, batch_size=self.eval_batch_size, shuffle=True
+        )
         print(f"[INFO]: Validation dataloader size: {len(dl)}")
         return dl
 
@@ -195,6 +181,4 @@ class HousePricingDataModule(L.LightningDataModule):
         return dl
 
     def in_features(self) -> int:
-        return self.train_df.shape[1] - 1
-
-
+        return self.fit_df.shape[1] - 1
