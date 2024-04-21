@@ -1,13 +1,19 @@
 import os
+from os.path import join
+from pathlib import Path
 import subprocess
 from sklearn.compose import ColumnTransformer, make_column_selector
 import pandas as pd
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
+
+
+def submit_prediction(script_name: str) -> None:
+    subprocess.call(["sh", script_name])
 
 
 def download_data(script_name: str) -> None:
@@ -52,71 +58,146 @@ def column_transformer() -> ColumnTransformer:
 
 
 def setup_dataframes(
-    train_csv: str,
+    data_dir: str,
     column_transformer: ColumnTransformer,
-    predict_csv=None,
-    test=False,
-    predict=False,
     test_size=0.1,
-    target="SalePrice",
+    id_column_name="Id",
+    target_column_name="SalePrice",
 ) -> Dict[str, pd.DataFrame]:
 
-    fit_df = None
-    test_df = None
-    predict_df = None
+    ready_data_dir = join(data_dir, "ready")
+
+    if os.path.exists(ready_data_dir):
+        dataframes = _reload_setup_dataframes(data_dir)
+    else:
+        dataframes = _fresh_setup_dataframes(
+            data_dir, column_transformer, test_size, id_column_name, target_column_name
+        )
+
+    return dataframes
+
+
+def _fresh_setup_dataframes(
+    data_dir: str,
+    column_transformer: ColumnTransformer,
+    test_size: int,
+    id_column_name="Id",
+    target_column_name="SalePrice",
+) -> Dict[str, pd.DataFrame]:
+
+    print("[INFO]: Fresh data setup...")
+    ready_data_dir = join(data_dir, "ready")
+    Path(ready_data_dir).mkdir(exist_ok=True, parents=True)
+
+    data_fit_test_dataframes = _setup_fit_test_dataframes(
+        data_dir,
+        column_transformer,
+        test_size=test_size,
+        id_column_name=id_column_name,
+        target_column_name=target_column_name,
+    )
+
+    dropped_columns = data_fit_test_dataframes["dropped_columns"]
+
+    fit_test_dataframes = data_fit_test_dataframes["data_frames"]
+    predict_dataframe = _setup_predict_dataframes(
+        data_dir,
+        column_transformer,
+        id_column_name=id_column_name,
+        dropped_columns=dropped_columns,
+    )
+
+    dataframes: Dict[str, pd.DataFrame] = {**fit_test_dataframes, **predict_dataframe}
+
+    for name, df in dataframes.items():
+        csv_name = join(ready_data_dir, f"{name}.csv")
+        df.to_csv(csv_name, index=False)
+
+    return dataframes
+
+
+def _reload_setup_dataframes(data_dir: str) -> Dict[str, pd.DataFrame]:
+    print("[INFO]: Reloading set up data...")
+    csv_names = ["fit", "test", "predict"]
+    ready_data_dir = join(data_dir, "ready")
+    dataframes = {csv: pd.read_csv(join(ready_data_dir, f"{csv}.csv")) for csv in csv_names}
+
+    return dataframes
+
+
+def _setup_fit_test_dataframes(
+    data_dir: str,
+    column_transformer: ColumnTransformer,
+    test_size=0.1,
+    id_column_name="Id",
+    target_column_name="SalePrice",
+) -> Dict[str, Any]:
+
+    train_csv = join(data_dir, "train.csv")
 
     fit_df = pd.read_csv(train_csv)
+    test_df = None
+
     dropped_columns = []
 
-    if test:
-        fit_df, test_df = train_test_split(
-            fit_df, train_size=1 - test_size, random_state=42
-        )
+    fit_df, test_df = train_test_split(
+        fit_df, train_size=1 - test_size, random_state=42
+    )
 
-        fit_df, dropped_columns = _preprocess_fit_dataframe(fit_df)
-        test_df = _preprocess_eval_dataframe(test_df, dropped_columns)
+    fit_df, dropped_columns = _preprocess_fit_dataframe(fit_df)
+    test_df = _preprocess_eval_dataframe(test_df, dropped_columns)
 
-        X_train = column_transformer.fit_transform(fit_df.drop(target, axis=1))
-        X_test = column_transformer.transform(test_df.drop(target, axis=1))
+    fit_X = column_transformer.fit_transform(
+        fit_df.drop([id_column_name, target_column_name], axis=1)
+    )
+    test_X = column_transformer.transform(
+        test_df.drop([id_column_name, target_column_name], axis=1)
+    )
 
-        y_train = fit_df[target]
-        y_test = test_df[target]
+    fit_y = fit_df[target_column_name]
+    test_y = test_df[target_column_name]
 
-        fit_df = pd.DataFrame(
-            data=X_train, columns=column_transformer.get_feature_names_out()
-        )
-        fit_df[target] = y_train
+    fit_id = fit_df[id_column_name]
+    test_id = test_df[id_column_name]
 
-        test_df = pd.DataFrame(
-            data=X_test, columns=column_transformer.get_feature_names_out()
-        )
-        test_df[target] = y_test
-    else:
-        fit_df, dropped_columns = _preprocess_fit_dataframe(fit_df)
+    fit_df = pd.DataFrame(
+        data=fit_X, columns=column_transformer.get_feature_names_out()
+    )
+    fit_df[target_column_name] = fit_y
+    fit_df[id_column_name] = fit_id
 
-        X_train = column_transformer.fit_transform(fit_df.drop(target, axis=1))
-        y_train = fit_df[target]
+    test_df = pd.DataFrame(
+        data=test_X, columns=column_transformer.get_feature_names_out()
+    )
+    test_df[target_column_name] = test_y
+    test_df[id_column_name] = test_id
 
-        fit_df = pd.DataFrame(
-            data=X_train, columns=column_transformer.get_feature_names_out()
-        )
-        fit_df[target] = y_train
+    dataframes = {"fit": fit_df, "test": test_df}
 
-    if predict:
-        predict_df = pd.read_csv(predict_csv)
-        predict_df = _preprocess_eval_dataframe(predict_df, dropped_columns)
+    return {"data_frames": dataframes, "dropped_columns": dropped_columns}
 
-        X_predict = column_transformer.transform(predict_df)
 
-        predict_df = pd.DataFrame(
-            data=X_predict, columns=column_transformer.get_feature_names_out()
-        )
+def _setup_predict_dataframes(
+    data_dir: str,
+    column_transformer: ColumnTransformer,
+    id_column_name="Id",
+    dropped_columns=[],
+) -> Dict[str, pd.DataFrame]:
 
-    return {
-        "fit": fit_df,
-        "test": test_df,
-        "predict": predict_df,
-    }
+    predict_csv = join(data_dir, "predict.csv")
+
+    predict_df = pd.read_csv(predict_csv)
+    predict_df = _preprocess_eval_dataframe(predict_df, dropped_columns)
+
+    predict_X = column_transformer.transform(predict_df.drop(id_column_name, axis=1))
+    predict_id = predict_df[id_column_name]
+
+    predict_df = pd.DataFrame(
+        data=predict_X, columns=column_transformer.get_feature_names_out()
+    )
+    predict_df[id_column_name] = predict_id
+
+    return {"predict": predict_df}
 
 
 def _preprocess_fit_dataframe(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
@@ -179,7 +260,6 @@ def _preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     dropped_colums = [
-        "Id",
         "Alley",
         "MasVnrType",
         "FireplaceQu",

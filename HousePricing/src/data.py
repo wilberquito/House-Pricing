@@ -14,7 +14,14 @@ from src.transforms import ToTensor
 class HousePricingDataset(Dataset):
     """House Pricing dataset."""
 
-    def __init__(self, df: pd.DataFrame, predict: bool = False, transform=None):
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        predict: bool = False,
+        target_column_name="SalePrice",
+        id_column_name="Id",
+        transform=None,
+    ):
         """
         Arguments:
             df (pd.DataFrame): dataframe to use as dataset.
@@ -22,10 +29,19 @@ class HousePricingDataset(Dataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
+
+        self.labels = None
+        self.ids = None
+
         self.predict = predict
         self.transform = transform
 
-        self.samples = df.drop("SalePrice", axis=1, errors="ignore")
+        self.samples = df.drop(
+            [id_column_name, target_column_name], axis=1, errors="ignore"
+        )
+        self.ids = df[id_column_name]
+        self.labels = None
+
         if not self.predict:
             self.labels = df["SalePrice"]
 
@@ -39,15 +55,21 @@ class HousePricingDataset(Dataset):
         X = self.samples.iloc[idx]
         X = X.to_numpy()
 
+        ids = self.ids[idx]
+
         if not self.predict:
             y = self.labels.iloc[idx]
 
-        sample = {"inputs": X, "target": y} if not self.predict else {"inputs": X}
+        batch = (
+            {"id": ids, "inputs": X, "target": y}
+            if not self.predict
+            else {"id": ids, "inputs": X}
+        )
 
         if self.transform:
-            sample = self.transform(sample)
+            batch = self.transform(batch)
 
-        return sample
+        return batch
 
 
 class HousePricingDataModule(L.LightningDataModule):
@@ -56,29 +78,25 @@ class HousePricingDataModule(L.LightningDataModule):
         data_dir: Optional[str] = None,
         batch_size: int = 32,
         eval_batch_size=128,
-        validation=True,
-        validation_size=0.1,
-        test=True,
-        test_size=0.1,
-        predict=True,
+        validation_size=0.0
     ):
 
         super().__init__()
 
-        self.validation = validation
-        self.test = test
-        self.predict = predict
+        self.validation = True
+        self.test = True
+        self.predict = True
 
         self.validation_size = validation_size
-        self.test_size = test_size
+        self.test_size = 0.1
+
+        if self.validation_size <= 0:
+            self.validation = False
 
         self.batch_size = batch_size
         self.eval_batch_size = eval_batch_size
 
         self.data_dir = data_dir if data_dir else join("data")
-
-        self.train_csv = join(self.data_dir, "train.csv")
-        self.predict_csv = join(self.data_dir, "predict.csv")
 
         self.fit_df = None
         self.test_df = None
@@ -96,24 +114,15 @@ class HousePricingDataModule(L.LightningDataModule):
         self._setup_dataframes()
 
     def _setup_dataframes(self):
-
         dataframes = setup_dataframes(
-            self.train_csv,
+            self.data_dir,
             self.column_transformer,
-            test=self.test,
             test_size=self.test_size,
-            predict=self.predict,
-            predict_csv=self.predict_csv,
         )
 
-        print(f"[INFO]: Set up datasets: {dataframes.keys()}")
-
-        if "fit" in dataframes:
-            self.fit_df = dataframes["fit"]
-        if "test" in dataframes:
-            self.test_df = dataframes["test"]
-        if "predict" in dataframes:
-            self.predict_df = dataframes["predict"]
+        self.fit_df = dataframes["fit"]
+        self.test_df = dataframes["test"]
+        self.predict_df = dataframes["predict"]
 
     def setup(self, stage: str):
         print(f"[INFO]: Setting up {stage} dataset/s")
@@ -180,5 +189,9 @@ class HousePricingDataModule(L.LightningDataModule):
         print(f"[INFO]: Predict dataloader size: {len(dl)}")
         return dl
 
-    def in_features(self) -> int:
-        return self.fit_df.shape[1] - 1
+    def data_features(self) -> int:
+        """Returns the number of features given by the data.
+        We substract 2 features because we don't take in account
+        the sample price and the sample id
+        """
+        return self.fit_df.shape[1] - 2
