@@ -59,9 +59,13 @@ class NeuralNetwork(L.LightningModule):
         return loss
 
     def predict_step(self, batch):
+        ids = batch["id"]
         inputs = batch["inputs"]
-        output = self(inputs)
-        return output
+        output = self(inputs).flatten()
+        return {
+            "id": ids,
+            "prediction": output
+        }
 
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=self.lr)
