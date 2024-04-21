@@ -7,10 +7,11 @@ import torch.nn.functional as F
 
 
 class NeuralNetwork(L.LightningModule):
-    def __init__(self, input_size: int):
+    def __init__(self, input_size: int, lr=0.001):
         super().__init__()
 
         self.input_size = input_size
+        self.lr = lr
 
         print(f"[INFO]: Input size: {self.input_size}")
 
@@ -63,7 +64,7 @@ class NeuralNetwork(L.LightningModule):
         return output
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.parameters(), lr=0.1)
+        return torch.optim.AdamW(self.parameters(), lr=self.lr)
 
     def on_train_start(self) -> None:
         logger = self.trainer.logger
