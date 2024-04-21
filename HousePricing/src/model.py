@@ -1,7 +1,9 @@
+from os.path import join
 import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 
 
 class NeuralNetwork(L.LightningModule):
@@ -64,6 +66,7 @@ class NeuralNetwork(L.LightningModule):
         return torch.optim.AdamW(self.parameters(), lr=0.1)
 
     def on_train_start(self) -> None:
-        print(f"[INFO]: Logger save dir: {self.trainer.logger.save_dir}")
-        print(f"[INFO]: Logger name: {self.trainer.logger.name}")
-        print(f"[INFO]: Logger version: {self.trainer.logger.version}")
+        logger = self.trainer.logger
+        self.save_model_dir = join(logger.save_dir, logger.name, logger.version)
+        print(f"[INFO]: Logger save model dir: {self.save_model_dir}")
+
