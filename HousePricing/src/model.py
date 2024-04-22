@@ -40,22 +40,22 @@ class NeuralNetwork(L.LightningModule):
         self.log("train_loss", loss)
         return loss
 
-    def validation_step(self, batch, batch_idx):
-        inputs, target = batch["inputs"], batch["target"]
-        if target.dim() == 1:
-            target = target.view(target.size(0), -1)
-        output = self(inputs)
-        loss = F.mse_loss(output, target)
+    def validation_step(self, batch):
+        loss = self._share_eval_step(batch)
         self.log("val_loss", loss)
         return loss
 
     def test_step(self, batch):
+        loss = self._share_eval_step(batch)
+        self.log("test_loss", loss)
+        return loss
+
+    def _share_eval_step(self, batch):
         inputs, target = batch["inputs"], batch["target"]
         if target.dim() == 1:
             target = target.view(target.size(0), -1)
         output = self(inputs)
         loss = F.mse_loss(output, target)
-        self.log("test_loss", loss)
         return loss
 
     def predict_step(self, batch):
@@ -74,4 +74,3 @@ class NeuralNetwork(L.LightningModule):
         logger = self.trainer.logger
         self.save_model_dir = join(logger.save_dir, logger.name, logger.version)
         print(f"[INFO]: Logger save model dir: {self.save_model_dir}")
-
