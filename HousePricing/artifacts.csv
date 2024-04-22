@@ -1,0 +1,4 @@
+run_name,best_model,fit_accelerator,fit_max_epochs,fit_patience,fit_lr,fit_batch_size,fit_in_features,fit_validation_size
+Mr._ZI1EUZUC,./lightning_logs/mrsat7bm/checkpoints/house_pricing-epoch=956-val_loss=383568800.00.ckpt,gpu,1000,100,0.001,256,244,0.1
+Gerald_4LIP1BLK,./lightning_logs/3478itnz/checkpoints/house_pricing-epoch=831-val_loss=389454272.00.ckpt,gpu,1000,100,0.001,256,244,0.1
+Stacey_Y41HGQZW,./lightning_logs/27yrkxwa/checkpoints/house_pricing-epoch=818-val_loss=392531328.00.ckpt,gpu,1000,100,0.001,256,244,0.1
